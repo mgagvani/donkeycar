@@ -190,11 +190,10 @@ class OakD(object):
             rgb_frame = self.get_frame(self.rgb_queue)
 
             self.depth_image = depth_frame
-            self.color_image = rgb_frame
+            self.color_image = cv2.cvtColor(rgb_frame, cv2.COLOR_BGR2RGB) # opencv is BGR, want RGB
 
         if self.resize:
                 if self.width != WIDTH or self.height != HEIGHT:
-                    import cv2
                     self.color_image = cv2.resize(self.color_image, (self.width, self.height),
                                                   cv2.INTER_NEAREST) if self.enable_rgb else None
                     self.depth_image = cv2.resize(self.depth_image, (self.width, self.height),
@@ -269,7 +268,7 @@ if __name__ == "__main__":
 
     camera = None
     try:
-        camera = OakDLite(
+        camera = OakD(
             width=width, height=height,
             enable_rgb=enable_rgb, enable_depth=enable_depth, device_id=device_id)
 
