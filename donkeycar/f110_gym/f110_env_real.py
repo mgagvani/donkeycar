@@ -10,6 +10,8 @@ from donkeycar.parts import actuator
 from donkeycar.parts import oak_d
 from donkeycar.parts import lidar
 
+from vision_helper import *
+
 class f110_env(gym.Env):
     """
     OpenAI Gym Environment for a real car
@@ -90,6 +92,10 @@ class f110_env(gym.Env):
         # obs is 'cam/image_array' for now
         obs = self.V.mem['cam/image_array']
 
+        # calculate birds eye view
+        birdseye = birds_eye_view(obs)
+        self.V.mem['cam/image_array'] = birdseye
+
         # reward is 0.1 for now
         reward = self.calc_reward()
 
@@ -103,7 +109,13 @@ class f110_env(gym.Env):
 
     def calc_reward(self):
         return 0.1
-        
+    
+    def calc_episode_over(self):
+        """
+        Episode if over if
+        1) Lidar too close to an object
+        2) Camera doesn't see the track
+        """        
 
     def reset(self):
         pass
