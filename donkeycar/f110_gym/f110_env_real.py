@@ -1,11 +1,14 @@
 import gymnasium as gym
 import numpy as np
 
-from gym import error, spaces, utils
+from gymnasium import error, spaces, utils
 from collections import deque
 
 import donkeycar as dk
 from donkeycar.parts.controller import LocalWebController
+from donkeycar.parts import actuator
+from donkeycar.parts import oak_d
+from donkeycar.parts import lidar
 
 class f110_env(gym.Env):
     """
@@ -47,7 +50,7 @@ class f110_env(gym.Env):
           inputs=["cam/image_array", 'tub/num_records', 'user/mode', 'recording'],
           outputs=['user/steering', 'user/throttle', 'user/mode', 'recording', 'web/buttons'],
           threaded=True)
-        
+        '''
         vesc = dk.parts.actuator.VESC(self.VESC_SERIAL_PORT,
                       self.VESC_MAX_SPEED_PERCENT,
                       self.VESC_HAS_SENSOR,
@@ -58,7 +61,7 @@ class f110_env(gym.Env):
                       self.VESC_STEERING_OFFSET
                     )
         self.V.add(vesc, inputs=['steering', 'throttle'])
-
+        '''
         camera = dk.parts.oak_d.OakD(
             enable_rgb=True,
             enable_depth=True,
@@ -108,3 +111,12 @@ class f110_env(gym.Env):
     def render(self, mode='human'):
         # web controller should auto update w/ 'cam/image_array'
         pass
+
+if __name__ == "__main__":
+    env = f110_env()
+    env.reset()
+
+    while True:
+        action = (0.1, 0.1)
+        obs, reward, done, info = env.step(action)
+
