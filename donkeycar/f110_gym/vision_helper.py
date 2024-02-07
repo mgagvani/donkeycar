@@ -1,30 +1,29 @@
 import numpy as np
 import cv2
 
-def birds_eye_view(img):
-    """
-    Map image from front mounted camera to a birds eye view
-    See the track as if you were looking down from above
-    """
+class ImgWarp:
+    '''
+    ImgWarp: A part to warp an image to a birdseye view.
+    '''
 
-    # Define the perspective transform area
-    src = np.float32([
-        [0, img.shape[0]],
-        [img.shape[1], img.shape[0]],
-        [img.shape[1]*0.6, img.shape[0]*0.6],
-        [img.shape[1]*0.4, img.shape[0]*0.6]
-    ])
+    def __init__(self, input_size, output_size, src_points, dst_points):
+        '''
+        __init__: initialize the ImgWarp part.
+        input: input_size, a tuple (width, height)
+        input: output_size, a tuple (width, height)
+        input: src_points, a list of tuples [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+        input: dst_points, a list of tuples [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+        '''
+        self.input_size = input_size
+        self.output_size = output_size
+        self.src_points = np.float32(src_points)
+        self.dst_points = np.float32(dst_points)
+        self.M = cv2.getPerspectiveTransform(self.src_points, self.dst_points)
 
-    dst = np.float32([
-        [0, img.shape[0]],
-        [img.shape[1], img.shape[0]],
-        [img.shape[1], 0],
-        [0, 0]
-    ])
-
-    # Get the perspective transform matrix
-    M = cv2.getPerspectiveTransform(src, dst)
-    # Warp the image using the perspective transform matrix
-    warped = cv2.warpPerspective(img, M, (640, 480), flags=cv2.INTER_LINEAR)
-
-    return warped
+    def run(self, img):
+        '''
+        run: warp an image to a birdseye view.
+        input: img, an RGB numpy array
+        output: the warped image
+        '''
+        return cv2.warpPerspective(img, self.M, (self.output_size[0], self.output_size[1]))
