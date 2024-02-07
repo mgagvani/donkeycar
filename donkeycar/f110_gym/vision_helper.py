@@ -26,4 +26,8 @@ class ImgWarp:
         input: img, an RGB numpy array
         output: the warped image
         '''
+        # debug
+        if img is None:
+            return None
+
         return cv2.warpPerspective(img, self.M, (self.output_size[0], self.output_size[1]))

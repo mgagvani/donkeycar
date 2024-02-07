@@ -73,10 +73,10 @@ class f110_env(gym.Env):
               outputs=['cam/image_array', 'cam/depth_array'],
               threaded=True)
         
-        warp_points = [(0, 0), (640, 0), (640, 480), (0, 480)]
-        warp_dst_birdseye = [(0, 0), (640, 0), (480, 640), (160, 640)] # 160, 480
+        warp_points = [(640, 480), (0, 480), (0, 0), (640, 0)]
+        warp_dst_birdseye = [(640, 480), (0, 480), (315, 0), (325, 0)] 
         warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
-        self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=True)
+        self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
 
         lidar = dk.parts.lidar.RPLidar(0, 360)
         self.V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
@@ -98,8 +98,8 @@ class f110_env(gym.Env):
         obs = self.V.mem['cam/image_array']
 
         # calculate birds eye view
-        birdseye = birds_eye_view(obs)
-        self.V.mem['cam/image_array'] = birdseye
+        # birdseye = birds_eye_view(obs)
+        # self.V.mem['cam/image_array'] = birdseye
 
         # reward is 0.1 for now
         reward = self.calc_reward()
