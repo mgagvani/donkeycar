@@ -1146,6 +1146,10 @@ def add_drivetrain(V, cfg):
                         )
             V.add(vesc, inputs=['steering', 'throttle'])
 
+        elif cfg.DRIVE_TRAIN_TYPE == "PYSERIALTRANSFER_THROTTLESTEER":
+            from donkeycar.parts.actuator import ArdPySerialTransferSteerThrottle
+            V.add(ArdPySerialTransferSteerThrottle(), inputs=['steering', 'throttle'])
+
 
 if __name__ == '__main__':
     args = docopt(__doc__)

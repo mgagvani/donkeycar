@@ -21,6 +21,11 @@ except ImportError as e:
     logger.warn(f"RPi.GPIO was not imported. {e}")
     globals()["GPIO"] = None
 
+try:
+    import pySerialTransfer
+except ImportError as e:
+    logger.warn(f"pySerialTransfer was not imported. {e}")
+
 from donkeycar.parts.pins import OutputPin, PwmPin, PinState
 from donkeycar.utilities.deprecated import deprecated
 
@@ -1157,4 +1162,42 @@ class ArdPWMThrottle:
     def shutdown(self):
         # stop vehicle
         self.run(0)
+        self.running = False
+
+class ArdPySerialTransferSteerThrottle:
+    """
+    Wrapper over Arduino PySerialTransfer controller to convert angles and throttle
+    values to PWM pulses.
+    """
+
+    LEFT_ANGLE = -1
+    RIGHT_ANGLE = 1
+
+    MIN_THROTTLE = -1
+    MAX_THROTTLE = 1
+
+    def __init__(self, left_pulse=1000, right_pulse=2000, min_pulse=1500, zero_pulse=1500, max_pulse=1900):
+        self.controller = pySerialTransfer.SerialTransfer('/dev/ttyUSB0') # TODO: make port configurable
+        self.left_pulse = left_pulse
+        self.right_pulse = right_pulse
+        self.min_pulse = min_pulse
+        self.zero_pulse = zero_pulse
+        self.max_pulse = max_pulse
+        self.steering_pulse = zero_pulse
+        self.throttle_pulse = zero_pulse
+        self.running = True
+        logger.info('Arduino PySerialTransfer Steering and Throttle created')
+
+    def run(self, angle, throttle):
+        # map absolute angle to angle that vehicle can implement.
+        self.steering_pulse = dk.utils.map_range(angle, self.LEFT_ANGLE, self.RIGHT_ANGLE, self.left_pulse, self.right_pulse)
+        self.throttle_pulse = dk.utils.map_range(throttle, self.MIN_THROTTLE, self.MAX_THROTTLE, self.min_pulse, self.max_pulse)
+        self.controller.tx_obj([self.steering_pulse, self.throttle_pulse])
+        self.controller.send()
+
+    def shutdown(self):
+        # set steering straight
+        self.steering_pulse = self.zero_pulse
+        self.throttle_pulse = self.zero_pulse
+        time.sleep(0.3)
         self.running = False
