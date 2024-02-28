@@ -22,9 +22,9 @@ except ImportError as e:
     globals()["GPIO"] = None
 
 try:
-    import pySerialTransfer
+    import serial as serial
 except ImportError as e:
-    logger.warn(f"pySerialTransfer was not imported. {e}")
+    logger.warn(f"serial was not imported. {e}")
 
 from donkeycar.parts.pins import OutputPin, PwmPin, PinState
 from donkeycar.utilities.deprecated import deprecated
@@ -1176,8 +1176,8 @@ class ArdPySerialTransferSteerThrottle:
     MIN_THROTTLE = -1
     MAX_THROTTLE = 1
 
-    def __init__(self, left_pulse=1000, right_pulse=2000, min_pulse=1500, zero_pulse=1500, max_pulse=1900):
-        self.controller = pySerialTransfer.SerialTransfer('/dev/ttyUSB0') # TODO: make port configurable
+    def __init__(self, left_pulse=1000, right_pulse=2000, min_pulse=1000, zero_pulse=1500, max_pulse=2000):
+        self.controller = serial.Serial('/dev/ttyUSB0', timeout=1) # TODO: make port configurable
         self.left_pulse = left_pulse
         self.right_pulse = right_pulse
         self.min_pulse = min_pulse
@@ -1192,8 +1192,7 @@ class ArdPySerialTransferSteerThrottle:
         # map absolute angle to angle that vehicle can implement.
         self.steering_pulse = dk.utils.map_range(angle, self.LEFT_ANGLE, self.RIGHT_ANGLE, self.left_pulse, self.right_pulse)
         self.throttle_pulse = dk.utils.map_range(throttle, self.MIN_THROTTLE, self.MAX_THROTTLE, self.min_pulse, self.max_pulse)
-        self.controller.tx_obj([self.steering_pulse, self.throttle_pulse])
-        self.controller.send()
+        self.controller.write(f"<hello, {self.steering_pulse}, {self.throttle_pulse}>".encode())
 
     def shutdown(self):
         # set steering straight
