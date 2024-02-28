@@ -76,7 +76,7 @@ class f110_env(gym.Env):
         warp_points = [(640, 480), (0, 480), (0, 0), (640, 0)]
         warp_dst_birdseye = [(640, 480), (0, 480), (315, 0), (325, 0)] 
         warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
-        self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
+        # self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
 
         lidar = dk.parts.lidar.RPLidar(0, 360)
         self.V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
