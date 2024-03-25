@@ -11,6 +11,7 @@ from donkeycar.parts import oak_d
 from donkeycar.parts import lidar
 
 from vision_helper import *
+import time
 
 class f110_env(gym.Env):
     """
@@ -23,14 +24,18 @@ class f110_env(gym.Env):
     THROTTLE_MIN = 0.0
     THROTTLE_MAX = 1.0
 
-    VESC_SERIAL_PORT = '/dev/ttyACM0'
-    VESC_MAX_SPEED_PERCENT = THROTTLE_MAX
-    VESC_HAS_SENSOR = False
-    VESC_START_HEARTBEAT = True
-    VESC_BAUDRATE = 115200
-    VESC_TIMEOUT = 0.1
-    VESC_STEERING_SCALE = 1.0
-    VESC_STEERING_OFFSET = 0.0
+    THROTTLE_CHANNEL = 0
+    STEERING_CHANNEL = 1
+
+    PCA9685_I2C_ADDR = 0x40
+    PCA9685_I2C_BUSNUM = 7
+
+    THROTTLE_FORWARD_PWM = 320 
+    THROTTLE_STOPPED_PWM = 350 
+    THROTTLE_REVERSE_PWM = 390
+
+    STEERING_LEFT_PWM = 270        
+    STEERING_RIGHT_PWM = 460
 
     def __init__(self, loop_speed=20):
         # gym settings
@@ -50,20 +55,23 @@ class f110_env(gym.Env):
         controller = LocalWebController()
         self.V.add(controller,
           inputs=["cam/image_array", 'tub/num_records', 'user/mode', 'recording'],
-          outputs=['user/steering', 'user/throttle', 'user/mode', 'recording', 'web/buttons'],
+          outputs=['steering', 'throttle', 'user/mode', 'recording', 'web/buttons'],
           threaded=True)
-        '''
-        vesc = dk.parts.actuator.VESC(self.VESC_SERIAL_PORT,
-                      self.VESC_MAX_SPEED_PERCENT,
-                      self.VESC_HAS_SENSOR,
-                      self.VESC_START_HEARTBEAT,
-                      self.VESC_BAUDRATE,
-                      self.VESC_TIMEOUT,
-                      self.VESC_STEERING_SCALE,
-                      self.VESC_STEERING_OFFSET
-                    )
-        self.V.add(vesc, inputs=['steering', 'throttle'])
-        '''
+        
+        steering_controller = dk.parts.actuator.PCA9685(self.STEERING_CHANNEL, self.PCA9685_I2C_ADDR, busnum=self.PCA9685_I2C_BUSNUM)
+        steering = dk.parts.actuator.PWMSteering(controller=steering_controller,
+                                        left_pulse=self.STEERING_LEFT_PWM,
+                                        right_pulse=self.STEERING_RIGHT_PWM)
+
+        throttle_controller = dk.parts.actuator.PCA9685(self.THROTTLE_CHANNEL, self.PCA9685_I2C_ADDR, busnum=self.PCA9685_I2C_BUSNUM)
+        throttle = dk.parts.actuator.PWMThrottle(controller=throttle_controller,
+                                        max_pulse=self.THROTTLE_FORWARD_PWM,
+                                        zero_pulse=self.THROTTLE_STOPPED_PWM,
+                                        min_pulse=self.THROTTLE_REVERSE_PWM)
+
+        self.V.add(steering, inputs=['steering'], threaded=True)
+        self.V.add(throttle, inputs=['throttle'], threaded=True)
+        
         camera = dk.parts.oak_d.OakD(
             enable_rgb=True,
             enable_depth=True,
@@ -78,21 +86,24 @@ class f110_env(gym.Env):
         warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
         # self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
 
-        lidar = dk.parts.lidar.RPLidar(0, 360)
-        self.V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
+        # lidar = dk.parts.lidar.RPLidar(0, 360)
+        # self.V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
 
         # start the vehicle
-        self.V.start(rate_hz=self.loop_speed)
+        #
+
+        self.steps_alive = 0
         
         
     def step(self, action):
         # update vehicle with new action
         steering, throttle = action
-        self.V.mem['user/steering'] = steering
-        self.V.mem['user/throttle'] = throttle  
+        self.V.mem['steering'] = steering
+        self.V.mem['throttle'] = throttle  
 
         # add to replay buffer deque
-        self.replay_buffer.append(action)    
+        self.replay_buffer.append(action)  
+        self.steps_alive += 1  
 
         # obs is 'cam/image_array' for now
         obs = self.V.mem['cam/image_array']
@@ -113,7 +124,7 @@ class f110_env(gym.Env):
         return obs, reward, done, info
 
     def calc_reward(self):
-        return 0.1
+        return self.steps_alive
     
     def calc_episode_over(self):
         """
@@ -123,17 +134,35 @@ class f110_env(gym.Env):
         """        
 
     def reset(self):
-        pass
+        print("RESETTING, self.steps_alive = ", self.steps_alive)
+        self.V.start(rate_hz=self.loop_speed)
+        self.steps_alive = 0
+
+        # replay buffer, but reverse the throttle (so it goes to where it started)
+        for item in self.replay_buffer:
+            item[1] = -item[1]
+
+        # reset the vehicle
+        for _ in range(self.steps_alive):
+            self.V.mem['steering'], self.V.mem['throttle'] = self.replay_buffer.popleft()
+            time.sleep(0.05)
 
     def render(self, mode='human'):
         # web controller should auto update w/ 'cam/image_array'
         pass
 
 if __name__ == "__main__":
+    print("HI")
     env = f110_env()
     env.reset()
+    print("Successfully RESET")
 
-    while True:
-        action = (0.1, 0.1)
+    # test reset: go forwards/right for 10 steps
+    for _ in range(10):
+        action = (0, -0.5)
         obs, reward, done, info = env.step(action)
+        time.sleep(0.05)
+        print(_)
+
+    env.reset()
 
