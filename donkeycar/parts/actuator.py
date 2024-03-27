@@ -317,6 +317,8 @@ class PWMSteering:
 
     def run_threaded(self, angle):
         # map absolute angle to angle that vehicle can implement.
+        if angle is None:
+            angle = 0
         angle = utils.clamp(angle, self.LEFT_ANGLE, self.RIGHT_ANGLE)
         self.pulse = dk.utils.map_range(angle,
                                         self.LEFT_ANGLE, self.RIGHT_ANGLE,
@@ -371,6 +373,8 @@ class PWMThrottle:
             self.controller.set_pulse(self.pulse)
 
     def run_threaded(self, throttle):
+        if throttle is None:
+            throttle = 0
         throttle = utils.clamp(throttle, self.MIN_THROTTLE, self.MAX_THROTTLE)
         if throttle > 0:
             self.pulse = dk.utils.map_range(throttle, 0, self.MAX_THROTTLE,
@@ -1177,7 +1181,7 @@ class ArdPySerialTransferSteerThrottle:
     MAX_THROTTLE = 1
 
     def __init__(self, left_pulse=1000, right_pulse=2000, min_pulse=1000, zero_pulse=1500, max_pulse=2000):
-        self.controller = serial.Serial('/dev/ttyACM0', timeout=0.05) # TODO: make port configurable
+        # self.controller = serial.Serial('/dev/ttyACM0', baudrate=115200, timeout=0.05) # TODO: make port configurable
         self.left_pulse = left_pulse
         self.right_pulse = right_pulse
         self.min_pulse = min_pulse
@@ -1194,13 +1198,18 @@ class ArdPySerialTransferSteerThrottle:
         self.steering_pulse = dk.utils.map_range(angle, self.LEFT_ANGLE, self.RIGHT_ANGLE, self.left_pulse, self.right_pulse)
         self.throttle_pulse = dk.utils.map_range(throttle, self.MIN_THROTTLE, self.MAX_THROTTLE, self.min_pulse, self.max_pulse)
         msg = f"<Hello, {self.steering_pulse}, {self.throttle_pulse}>"
-        print(msg)
-        self.controller.read(self.controller.in_waiting)
-        self.controller.write(msg.encode())
-        time.sleep(0.1)
-        # self.controller.write(msg.encode())
-        # self.controller.flush()
-        # self.controller.reset_output_buffer()
+        with serial.Serial("/dev/ttyACM0", baudrate=115200, timeout=0.05) as self.controller:
+        	print(msg, self.controller.in_waiting, self.controller.out_waiting)
+        	# self.controller.read(self.controller.in_waiting)
+        	t0 = time.time()
+        	self.controller.write(msg.encode())
+        	print(f"Took {time.time() - t0} s to write msg")
+        	# time.sleep(0.1)
+        	# self.controller.write(msg.encode())
+        	t0 = time.time()
+        	self.controller.flush()
+        	print(f"Took {time.time() - t0} s to flush")
+        	# self.controller.reset_output_buffer()
 
     def shutdown(self):
         # set steering straight
