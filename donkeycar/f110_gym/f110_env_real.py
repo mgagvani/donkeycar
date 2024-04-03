@@ -3,6 +3,7 @@ import numpy as np
 
 from gymnasium import error, spaces, utils
 from collections import deque
+from simple_pid import PID
 
 import donkeycar as dk
 from donkeycar.parts.controller import LocalWebController
@@ -16,7 +17,7 @@ import time
 
 def steering_conversion(steering_angle):
     '''
-    convert steering angle to (-1, 1)
+    convert steering angle from (-1, 1) to angle
     '''
     if steering_angle > 0:
         return 37.852 * steering_angle ** 2 \
@@ -24,13 +25,32 @@ def steering_conversion(steering_angle):
     else:
         return -(37.852 * (-steering_angle) ** 2 \
                 - 67.972 * (-steering_angle))
-        
+    
+
+def angle_to_steering(angle):
+    '''
+    convert angle to steering angle
+    https://www.desmos.com/calculator/ryhwmy5fcj
+    '''
+    if angle < -30.5: # 30.515
+        return 1
+    elif angle > 30.5:
+        return -1
+
+    # inverse of steering_conversion
+    val = (67972 - np.sqrt(67972**2 + 151408000 * angle))/75704
+    if angle < 0: # right
+        val = (67972 - np.sqrt(67972**2 + 151408000 * angle))/75704
+    else:
+        val = -((67972 - np.sqrt(67972**2 + 151408000 * (-angle)))/75704)
+    return val
 
 class LidarConsumer:
     def __init__(self):
         self.backing_array = np.ones(360)
         self.quantized_array = np.zeros(30) # 30 points instead of 360
-        self.driver = GapFollower()
+        self.driver = AnotherDriver()
+        self.pid = PID(0.001, 0, 0, setpoint=0) # diff between left/right distance
 
     def run(self, lidar_data):
         self.lidar_data = lidar_data
@@ -62,14 +82,23 @@ class LidarConsumer:
         # print(f"Steering: {steering * 180/np.pi}", end='\r')
         
         # convert max angle to steering (-1, 1)
-        # steering = (max_quantized_angle - 180) / 180
+        steering = max_quantized_angle
+
+        # left/right dist
+        right_dist = np.mean(self.backing_array[45:135]) # 90
+        left_dist = np.mean(self.backing_array[225:315]) # 270
+
+        print(f"Left: {left_dist}, Right: {right_dist}")
+
+        steering = self.pid(left_dist - right_dist)
+        print(f"Steering: {steering}")
 
         # scale angle to (-1, 1) <-- (-pi, pi)
         STEERING_FACTOR = 1.0
-        steering = steering_conversion(steering)
-        # steering = -steering * STEERING_FACTOR / np.pi
-        # print(f"Steering: {steering}", end='\r')
-        return float(input("steering: "))
+        # control_steer = angle_to_steering(steering)
+        # # steering = -steering * STEERING_FACTOR / np.pi
+        # print(f"Steering: {steering} --> {control_steer}", end='\r')
+        return steering
 
     def shutdown(self):
         pass
