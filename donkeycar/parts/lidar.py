@@ -96,7 +96,7 @@ class RPLidar2(object):
         self.min_distance = min_distance
         self.max_distance = max_distance
         self.forward_angle = forward_angle
-        self.spin_reverse = (args.angle_direction != CLOCKWISE)
+        self.spin_reverse = (angle_direction != CLOCKWISE)
         self.measurements = [] # list of (distance, angle, time, scan, index) 
 
         from adafruit_rplidar import RPLidar
@@ -130,7 +130,7 @@ class RPLidar2(object):
         self.full_scan_count = 0
         self.full_scan_index = 0
         self.total_measurements = 0
-        self.iter_measurements = self.lidar.iter_measurements()
+        self.iter_measurements = self.lidar.iter_measurements(scan_type=0) # normal force express
         self.measurement_batch_ms = batch_ms
 
         self.running = True

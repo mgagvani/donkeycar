@@ -11,7 +11,68 @@ from donkeycar.parts import oak_d
 from donkeycar.parts import lidar
 
 from vision_helper import *
+from drivers import *
 import time
+
+def steering_conversion(steering_angle):
+    '''
+    convert steering angle to (-1, 1)
+    '''
+    if steering_angle > 0:
+        return 37.852 * steering_angle ** 2 \
+                - 67.972 * steering_angle
+    else:
+        return -(37.852 * (-steering_angle) ** 2 \
+                - 67.972 * (-steering_angle))
+        
+
+class LidarConsumer:
+    def __init__(self):
+        self.backing_array = np.ones(360)
+        self.quantized_array = np.zeros(30) # 30 points instead of 360
+        self.driver = GapFollower()
+
+    def run(self, lidar_data):
+        self.lidar_data = lidar_data
+        # print(type(lidar_data), len(lidar_data))
+        if len(lidar_data) == 0:
+            return
+
+        for item in lidar_data:
+            # distance, angle
+            distance, angle, _, _, _ = item
+            # print(distance)
+            
+            nearest_angle = int(angle)
+            self.backing_array[nearest_angle] = distance
+
+        # quantize the array
+        for i in range(0, 360, 12):
+            self.quantized_array[i//12] = int(np.mean(self.backing_array[i:i+12]))
+
+        # max dist and index (e.g angle)
+        max_dist = np.max(self.backing_array)
+        max_angle = np.argmax(self.backing_array)
+        # print(f"{max_dist} @ {max_angle} deg", end='\r')
+
+        max_quantized_dist = np.max(self.quantized_array)
+        max_quantized_angle = np.argmax(self.quantized_array) * (360/30)
+
+        speed, steering = self.driver.process_lidar(np.copy(self.backing_array))
+        # print(f"Steering: {steering * 180/np.pi}", end='\r')
+        
+        # convert max angle to steering (-1, 1)
+        # steering = (max_quantized_angle - 180) / 180
+
+        # scale angle to (-1, 1) <-- (-pi, pi)
+        STEERING_FACTOR = 1.0
+        steering = steering_conversion(steering)
+        # steering = -steering * STEERING_FACTOR / np.pi
+        # print(f"Steering: {steering}", end='\r')
+        return float(input("steering: "))
+
+    def shutdown(self):
+        pass
 
 class f110_env(gym.Env):
     """
@@ -34,8 +95,8 @@ class f110_env(gym.Env):
     THROTTLE_STOPPED_PWM = 350 
     THROTTLE_REVERSE_PWM = 390
 
-    STEERING_LEFT_PWM = 270        
-    STEERING_RIGHT_PWM = 460
+    STEERING_LEFT_PWM =  240 # 270        
+    STEERING_RIGHT_PWM = 490 # 460
 
     def __init__(self, loop_speed=20):
         # gym settings
@@ -55,7 +116,7 @@ class f110_env(gym.Env):
         controller = LocalWebController()
         self.V.add(controller,
           inputs=["cam/image_array", 'tub/num_records', 'user/mode', 'recording'],
-          outputs=['steering', 'throttle', 'user/mode', 'recording', 'web/buttons'],
+          outputs=['temp/steering', 'throttle', 'user/mode', 'recording', 'web/buttons'],
           threaded=True)
         
         steering_controller = dk.parts.actuator.PCA9685(self.STEERING_CHANNEL, self.PCA9685_I2C_ADDR, busnum=self.PCA9685_I2C_BUSNUM)
@@ -86,8 +147,17 @@ class f110_env(gym.Env):
         warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
         # self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
 
-        # lidar = dk.parts.lidar.RPLidar(0, 360)
-        # self.V.add(lidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
+        rplidar = lidar.RPLidar2(
+            # min_angle=90,
+            # max_angle=270,
+            min_distance=100, # 100 mm = 10 cm
+            # forward_angle=180,
+            debug=True
+        )
+        # rplidar = lidar.RPLidar(90, 270, True)
+        self.V.add(rplidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
+
+        self.V.add(LidarConsumer(), inputs=['lidar/dist_array'], outputs=['steering'], threaded=False)
 
         # start the vehicle
         #
@@ -155,6 +225,7 @@ if __name__ == "__main__":
     print("HI")
     env = f110_env()
     env.reset()
+    '''
     print("Successfully RESET")
 
     # test reset: go forwards/right for 10 steps
@@ -165,4 +236,5 @@ if __name__ == "__main__":
         print(_)
 
     env.reset()
+    '''
 
