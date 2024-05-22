@@ -50,7 +50,7 @@ class LidarConsumer:
         self.backing_array = np.ones(360)
         self.quantized_array = np.zeros(30) # 30 points instead of 360
         self.driver = AnotherDriver()
-        self.pid = PID(0.001, 0, 0, setpoint=0) # diff between left/right distance
+        self.pid = PID(0.00032, 0.0001, 0.00000, setpoint=0) # diff between left/right distance
         # self.pid = PID(0.001, 0, 0, setpoint=500)
 
     def run(self, lidar_data):
@@ -89,12 +89,12 @@ class LidarConsumer:
         right_dist = np.mean(self.backing_array[45:135]) # 90
         left_dist = np.mean(self.backing_array[225:315]) # 270
         front_dist = np.mean(self.backing_array[0:45] + self.backing_array[315:360]) # 0-45, 315-360
-        if front_dist < 2000:
-            return -0.75, 0
-        elif front_dist > 3500:
-            throttle = 0.9
+        if front_dist < 2:
+            return -0.85, 0
+        elif front_dist > 5500:
+            throttle = 0.95
         else:
-            throttle = 0.7
+            throttle = 0.9999999996
 
         print(f"Left: {left_dist}, Right: {right_dist}, Front: {front_dist}")
 
@@ -111,6 +111,7 @@ class LidarConsumer:
 
     def shutdown(self):
         pass
+
 
 class f110_env(gym.Env):
     """
@@ -129,9 +130,9 @@ class f110_env(gym.Env):
     PCA9685_I2C_ADDR = 0x40
     PCA9685_I2C_BUSNUM = 7
 
-    THROTTLE_FORWARD_PWM = 320 
+    THROTTLE_FORWARD_PWM = 330 
     THROTTLE_STOPPED_PWM = 350 
-    THROTTLE_REVERSE_PWM = 390
+    THROTTLE_REVERSE_PWM = 380
 
     STEERING_LEFT_PWM =  240 # 270        
     STEERING_RIGHT_PWM = 490 # 460
@@ -156,6 +157,27 @@ class f110_env(gym.Env):
           inputs=["cam/image_array", 'tub/num_records', 'user/mode', 'recording'],
           outputs=['temp/steering', 'temp/throttle', 'user/mode', 'recording', 'web/buttons'],
           threaded=True)
+          
+        rplidar = lidar.RPLidar2(
+            # min_angle=90,
+            # max_angle=270,
+            min_distance=100, # 100 mm = 10 cm
+            # forward_angle=180,
+            debug=True
+        )
+        # rplidar = lidar.RPLidar(90, 270, True)
+        self.V.add(rplidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
+
+        self.V.add(LidarConsumer(), inputs=['lidar/dist_array'], outputs=['throttle', 'steering'], threaded=False)
+        
+        camera = dk.parts.oak_d.OakD(
+            enable_rgb=True,
+            enable_depth=True,
+            device_id=None
+        )
+        self.V.add(camera, inputs=[],
+              outputs=['cam/image_array', 'cam/depth_array'],
+              threaded=True)
         
         steering_controller = dk.parts.actuator.PCA9685(self.STEERING_CHANNEL, self.PCA9685_I2C_ADDR, busnum=self.PCA9685_I2C_BUSNUM)
         steering = dk.parts.actuator.PWMSteering(controller=steering_controller,
@@ -171,31 +193,11 @@ class f110_env(gym.Env):
         self.V.add(steering, inputs=['steering'], threaded=True)
         self.V.add(throttle, inputs=['throttle'], threaded=True)
         
-        camera = dk.parts.oak_d.OakD(
-            enable_rgb=True,
-            enable_depth=True,
-            device_id=None
-        )
-        self.V.add(camera, inputs=[],
-              outputs=['cam/image_array', 'cam/depth_array'],
-              threaded=True)
         
-        warp_points = [(640, 480), (0, 480), (0, 0), (640, 0)]
-        warp_dst_birdseye = [(640, 480), (0, 480), (315, 0), (325, 0)] 
-        warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
+        # warp_points = [(640, 480), (0, 480), (0, 0), (640, 0)]
+        # warp_dst_birdseye = [(640, 480), (0, 480), (315, 0), (325, 0)] 
+        # warp = ImgWarp((640, 480), (640, 480), warp_points, warp_dst_birdseye)
         # self.V.add(warp, inputs=['cam/image_array'], outputs=['cam/image_array'], threaded=False)
-
-        rplidar = lidar.RPLidar2(
-            # min_angle=90,
-            # max_angle=270,
-            min_distance=100, # 100 mm = 10 cm
-            # forward_angle=180,
-            debug=True
-        )
-        # rplidar = lidar.RPLidar(90, 270, True)
-        self.V.add(rplidar, inputs=[],outputs=['lidar/dist_array'], threaded=True)
-
-        self.V.add(LidarConsumer(), inputs=['lidar/dist_array'], outputs=['throttle', 'steering'], threaded=False)
 
         # start the vehicle
         #
@@ -260,6 +262,7 @@ class f110_env(gym.Env):
         pass
 
 if __name__ == "__main__":
+    input("Ready? ")
     print("HI")
     env = f110_env()
     env.reset()
