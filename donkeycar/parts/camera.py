@@ -329,6 +329,56 @@ class V4LCamera(BaseCamera):
         self.running = False
         time.sleep(0.5)
 
+class ScreenCamera(BaseCamera):
+    '''
+    Camera that uses mss to capture the screen
+    For capturing video games
+    '''
+
+    def __init__(self, image_w=160, image_h=120, image_d=3,
+                 vflip=False, hflip=False):
+        import mss
+        self.image_w = image_w
+        self.image_h = image_h
+        self.image_d = image_d
+        self.vflip = vflip
+        self.hflip = hflip
+        self.sct = mss.mss()
+        self.running = True
+
+    def take_screenshot(self):
+        # Capture the screen
+        monitor = {"top": 0, 
+                   "left": 0, 
+                   "width": self.image_w, 
+                   "height": self.image_h
+                   }
+        sct_img = self.sct.grab(monitor)
+        img = Image.frombytes('RGB', sct_img.size, sct_img.bgra, 'raw', 'BGRX')
+        img = img.resize((self.image_w, self.image_h))
+        return img
+
+    def update(self):
+        while self.running:
+            img = self.take_screenshot()
+            img_arr = np.array(img)
+            if self.vflip:
+                img_arr = np.flipud(img_arr)
+            if self.hflip:
+                img_arr = np.fliplr(img_arr)
+            self.frame = img_arr
+            time.sleep(0.)
+
+    def run(self):
+        self.update()
+
+    def run_threaded(self):
+        return self.frame
+    
+    def shutdown(self):
+        self.running = False
+        self.sct.close()
+
 
 class MockCamera(BaseCamera):
     '''

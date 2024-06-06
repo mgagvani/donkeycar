@@ -887,6 +887,17 @@ def add_camera(V, cfg, camera_type):
         V.add(cam, inputs=[],
               outputs=['cam/image_array', 'cam/depth_array'],
               threaded=True)
+        
+    elif cfg.CAMERA_TYPE == "SCREENSHOT":
+        from donkeycar.parts.camera import ScreenCamera
+        cam = ScreenCamera(
+            image_w=cfg.IMAGE_W, 
+            image_h=cfg.IMAGE_H,
+            vflip=cfg.CAMERA_VFLIP,
+            hflip=cfg.CAMERA_HFLIP)
+        V.add(cam, 
+              outputs=['cam/image_array'], 
+              threaded=True)
 
     else:
         inputs = []
