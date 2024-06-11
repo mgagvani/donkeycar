@@ -26,6 +26,11 @@ try:
 except ImportError as e:
     logger.warn(f"serial was not imported. {e}")
 
+try:
+    import pyxinput
+except ImportError as e:
+    logger.warn(f"pyxinput was not imported. {e}")
+
 from donkeycar.parts.pins import OutputPin, PwmPin, PinState
 from donkeycar.utilities.deprecated import deprecated
 
@@ -1167,6 +1172,31 @@ class ArdPWMThrottle:
         # stop vehicle
         self.run(0)
         self.running = False
+
+class VirtualController:
+    '''
+    Simulate a controller with a virtual joystick.
+    '''
+    def __init__(self):
+        self.angle = 0
+        self.throttle = 0
+        self.controller = pyxinput.vController()
+
+    def run(self, angle, throttle):
+        self.angle = angle
+        self.throttle = throttle
+
+        # angle
+        self.controller.set_value('AxisLx', angle)
+        
+        # throttle
+        if throttle > 0:
+            self.controller.set_value('TriggerR', throttle)
+        else:
+            self.controller.set_value('TriggerL', -throttle)
+
+    def shutdown(self):
+        self.controller.UnPlug()
 
 class ArdPySerialTransferSteerThrottle:
     """
